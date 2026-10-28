@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Live Overview{% endblock %}
+{% block heading %}Library Overview{% endblock %}
+{% block content %}
+<div class="stats">
+  <div class="card stat"><div class="stat-icon">{% include 'icons/entry.svg' %}</div><div><div class="stat-label">Total Entries Today</div><div class="stat-value" id="entries">–</div></div></div>
+  <div class="card stat"><div class="stat-icon">{% include 'icons/people.svg' %}</div><div><div class="stat-label">Current Occupancy</div><div class="stat-value" id="occupancy">–</div></div></div>
+</div>
+<h2 class="section">Live Room Status</h2>
+<div class="card table-card">
+  <table>
+    <thead><tr><th>ROOM</th><th>LOCATION</th><th>STATE</th><th>CAPACITY</th><th>LATEST EVENT</th></tr></thead>
+    <tbody id="rooms"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const STATES = {
+    unlocked: ["green", "Occupied / Unlocked"],
+    locked: ["red", "Vacant / Locked"],
+    offline: ["gray", "Offline"],
+  };
+  async function load() {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    try {
+      const data = await api("/api/overview?since=" + encodeURIComponent(startOfDay.toISOString()));
+      $("#entries").textContent = data.entries_today.toLocaleString();
+      $("#occupancy").textContent = `${data.occupied} / ${data.total_rooms}`;
+      $("#rooms").innerHTML = data.rooms.length ? data.rooms.map((room) => {
+        const [color, label] = STATES[room.state] || ["gray", room.state];
+        return `<tr><td>${escapeHtml(room.name)}</td><td>${escapeHtml(room.location)}</td>
+          <td><span class="pill ${color}">${label}</span></td><td>${room.capacity}</td>
+          <td>${formatTime(room.latest_event)}</td></tr>`;
+      }).join("") : '<tr><td colspan="5" class="empty">No rooms registered</td></tr>';
+    } catch (error) { console.error(error); }
+  }
+  load();
+  setInterval(load, 5000);
+</script>
+{% endblock %}

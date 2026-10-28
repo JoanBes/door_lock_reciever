@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Access Logs{% endblock %}
+{% block heading %}Access History{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <input class="input search" id="search" type="search" placeholder="Search by Student ID  ( / )">
+  <select class="input" id="range" aria-label="Date range">
+    <option value="today">Today · All times</option>
+    <option value="7d">Last 7 days</option>
+    <option value="all">All time</option>
+  </select>
+  <select class="input" id="result" aria-label="Result">
+    <option value="">All results</option>
+    <option value="granted">Granted</option>
+    <option value="denied">Denied</option>
+  </select>
+  <span class="spacer"></span>
+  <button class="btn" id="export">⇩ Export CSV</button>
+</div>
+<div class="card table-card">
+  <div class="table-title">RFID access events</div>
+  <table>
+    <thead><tr><th>TIMESTAMP</th><th>STUDENT NAME</th><th>STUDENT ID</th><th>ROOM</th><th>ACCESS RESULT</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="pager" id="pager"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const PER_PAGE = 10;
+  let page = 1;
+
+  function filters() {
+    const params = new URLSearchParams();
+    const q = $("#search").value.trim();
+    if (q) params.set("q", q);
+    if ($("#result").value) params.set("result", $("#result").value);
+    const range = $("#range").value;
+    if (range !== "all") {
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+      if (range === "7d") from.setDate(from.getDate() - 6);
+      params.set("from", from.toISOString());
+    }
+    return params;
+  }
+
+  async function load() {
+    const params = filters();
+    params.set("page", page);
+    params.set("per_page", PER_PAGE);
+    try {
+      const data = await api("/api/events?" + params);
+      $("#rows").innerHTML = data.items.length ? data.items.map((event) => {
+        const known = Boolean(event.owner_name);
+        const granted = event.event_type === "access_granted";
+        const avatar = known ? `<span class="avatar">${escapeHtml(initials(event.owner_name))}</span>` : '<span class="avatar warn">!</span>';
+        return `<tr><td>${formatDateTime(event.created_at)}</td>
+          <td><div class="person">${avatar}${escapeHtml(known ? event.owner_name : "Unknown credential")}</div></td>
+          <td>${escapeHtml(event.student_id || formatUid(event.uid))}</td>
+          <td>${escapeHtml(event.room || "—")}</td>
+          <td><span class="pill ${granted ? "green" : "red"}">${granted ? "Granted" : "Denied"}</span></td></tr>`;
+      }).join("") : '<tr><td colspan="5" class="empty">No access events found</td></tr>';
+      renderPager($("#pager"), { page, perPage: PER_PAGE, total: data.total }, (n) => { page = n; load(); }, "access events");
+    } catch (error) { console.error(error); }
+  }
+
+  const reload = () => { page = 1; load(); };
+  $("#search").addEventListener("input", debounce(reload));
+  $("#range").addEventListener("change", reload);
+  $("#result").addEventListener("change", reload);
+  $("#export").addEventListener("click", () => { window.location.href = "/api/events/export.csv?" + filters(); });
+  load();
+  setInterval(load, 10000);
+</script>
+{% endblock %}

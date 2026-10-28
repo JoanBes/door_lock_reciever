@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Card Management{% endblock %}
+{% block eyebrow %}<div class="eyebrow">Access Administration</div>{% endblock %}
+{% block heading %}Manage RFID Cards{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <input class="input search" id="search" type="search" placeholder="Search students, IDs, or RFID UID  ( / )">
+  <span class="spacer"></span>
+  <button class="btn primary" id="add-card">+ Add student</button>
+</div>
+<div class="stats">
+  <div class="card stat"><div class="stat-icon">{% include 'icons/card.svg' %}</div><div><div class="stat-label">Registered cards</div><div class="stat-value" id="s-registered">–</div></div></div>
+  <div class="card stat"><div class="stat-icon green">{% include 'icons/check.svg' %}</div><div><div class="stat-label">Active credentials</div><div class="stat-value" id="s-active">–</div></div></div>
+  <div class="card stat"><div class="stat-icon">{% include 'icons/ban.svg' %}</div><div><div class="stat-label">Inactive cards</div><div class="stat-value" id="s-inactive">–</div></div></div>
+</div>
+<div class="card table-card">
+  <div class="table-title">Registered students
+    <small>Sort: <select id="sort" style="border:0;background:none">
+      <option value="recent">Recently updated</option><option value="name">Name</option><option value="issued">Issue date</option>
+    </select></small>
+  </div>
+  <table>
+    <thead><tr><th>STUDENT IDENTITY</th><th>STUDENT ID</th><th>RFID UID</th><th>ISSUED</th><th>AUTHORIZATION</th><th>ACTIONS</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="pager" id="pager"></div>
+</div>
+
+<dialog id="card-dialog">
+  <form id="card-form" method="dialog">
+    <h3 id="dialog-title">Add student</h3>
+    <div class="field"><label for="f-name">Full name</label><input class="input" id="f-name" required></div>
+    <div class="field"><label for="f-student">Student ID</label><input class="input" id="f-student" placeholder="STU-2026-0001"></div>
+    <div class="field"><label for="f-email">Email</label><input class="input" id="f-email" type="email"></div>
+    <div class="field"><label for="f-uid">RFID UID</label><input class="input" id="f-uid" placeholder="04:A8:2F:91:7C:33" required></div>
+    <div class="field"><label for="f-password">Web password <span id="pw-hint" style="font-weight:400;color:#6b7a90">(lets the student view room occupancy)</span></label><input class="input" id="f-password" type="password" minlength="6" autocomplete="new-password"></div>
+    <div class="form-error" id="form-error" role="alert"></div>
+    <div class="dialog-actions">
+      <button class="btn" type="button" id="cancel">Cancel</button>
+      <button class="btn primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}
+<script>
+  const PER_PAGE = 8;
+  let page = 1;
+  let editingId = null;
+  let items = [];
+
+  async function load() {
+    const params = new URLSearchParams({ page, per_page: PER_PAGE, sort: $("#sort").value, q: $("#search").value.trim() });
+    try {
+      const data = await api("/api/cards?" + params);
+      $("#s-registered").textContent = data.registered.toLocaleString();
+      $("#s-active").textContent = data.active.toLocaleString();
+      $("#s-inactive").textContent = data.inactive.toLocaleString();
+      items = data.items;
+      $("#rows").innerHTML = data.items.length ? data.items.map((card) => `
+        <tr>
+          <td><div class="person"><span class="avatar">${escapeHtml(initials(card.owner_name))}</span>
+            <div>${escapeHtml(card.owner_name || "—")}<small>${escapeHtml(card.email || "")}${card.has_login ? "" : " · no web login"}</small></div></div></td>
+          <td><strong>${escapeHtml(card.student_id || "—")}</strong></td>
+          <td><span class="mono-chip">${escapeHtml(formatUid(card.uid))}</span></td>
+          <td>${formatDate(card.created_at)}</td>
+          <td><div class="auth ${card.active ? "on" : "off"}">
+            <button class="switch" role="switch" aria-checked="${card.active}" aria-label="Toggle authorization" data-id="${card.id}"></button>
+            ${card.active ? "Active" : "Inactive"}</div></td>
+          <td><button class="btn" data-edit="${card.id}" title="Edit student">Edit</button>
+            <button class="btn danger" data-delete="${card.id}" data-name="${escapeHtml(card.owner_name || card.uid)}" title="Remove student">Remove</button></td>
+        </tr>`).join("") : '<tr><td colspan="6" class="empty">No cards found</td></tr>';
+      renderPager($("#pager"), { page, perPage: PER_PAGE, total: data.total }, (n) => { page = n; load(); }, "registered students");
+    } catch (error) { console.error(error); }
+  }
+
+  $("#rows").addEventListener("click", async (event) => {
+    const toggle = event.target.closest(".switch");
+    const remove = event.target.closest("[data-delete]");
+    const edit = event.target.closest("[data-edit]");
+    if (edit) return openDialog(items.find((card) => card.id === Number(edit.dataset.edit)));
+    try {
+      if (toggle) {
+        await api(`/api/cards/${toggle.dataset.id}`, { method: "PATCH", body: JSON.stringify({ active: toggle.getAttribute("aria-checked") !== "true" }) });
+        load();
+      } else if (remove && confirm(`Remove ${remove.dataset.name}? Their card and web login will stop working.`)) {
+        await api(`/api/cards/${remove.dataset.delete}`, { method: "DELETE" });
+        load();
+      }
+    } catch (error) { toast(error.message); }
+  });
+
+  const reload = () => { page = 1; load(); };
+  $("#search").addEventListener("input", debounce(reload));
+  $("#sort").addEventListener("change", reload);
+
+  const dialog = $("#card-dialog");
+  function openDialog(card) {
+    editingId = card ? card.id : null;
+    $("#card-form").reset();
+    $("#form-error").textContent = "";
+    $("#dialog-title").textContent = card ? "Edit student" : "Add student";
+    $("#pw-hint").textContent = card ? "(leave blank to keep the current one)" : "(lets the student view room occupancy)";
+    if (card) {
+      $("#f-name").value = card.owner_name || "";
+      $("#f-student").value = card.student_id || "";
+      $("#f-email").value = card.email || "";
+      $("#f-uid").value = formatUid(card.uid);
+    }
+    dialog.showModal();
+  }
+  $("#add-card").addEventListener("click", () => openDialog(null));
+  $("#cancel").addEventListener("click", () => dialog.close());
+  $("#card-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const body = JSON.stringify({
+      owner_name: $("#f-name").value, student_id: $("#f-student").value, email: $("#f-email").value,
+      uid: $("#f-uid").value, password: $("#f-password").value });
+    try {
+      await api(editingId ? `/api/cards/${editingId}` : "/api/cards", { method: editingId ? "PUT" : "POST", body });
+      dialog.close();
+      toast(editingId ? "Student updated" : "Student added");
+      editingId ? load() : reload();
+    } catch (error) { $("#form-error").textContent = error.message; }
+  });
+  load();
+</script>
+{% endblock %}

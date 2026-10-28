@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LibraGate{% endblock %} · LibraGate Door Control</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">{% include 'icons/library.svg' %}</div>
+      <div><div class="brand-name">LibraGate</div><div class="brand-sub">DOOR CONTROL</div></div>
+    </div>
+    <div class="nav-label">OPERATIONS</div>
+    <nav>
+      <a href="{{ url_for('pages.overview') }}" class="{{ 'active' if active == 'overview' }}">{% include 'icons/grid.svg' %}Live Overview</a>
+      {% if is_admin %}
+      <a href="{{ url_for('pages.logs') }}" class="{{ 'active' if active == 'logs' }}">{% include 'icons/filter.svg' %}Access Logs</a>
+      <a href="{{ url_for('pages.cards') }}" class="{{ 'active' if active == 'cards' }}">{% include 'icons/card.svg' %}Card Management</a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-foot">
+      <div class="badge-sq">UJI</div>
+      <div><div>Universitat Jaume I Library</div><div class="muted-light">Ground floor</div></div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div>
+        {% block eyebrow %}{% endblock %}
+        <h1>{% block heading %}{% endblock %}</h1>
+      </div>
+      <div class="user-menu">
+        <button class="user-btn" id="user-btn" aria-haspopup="true">
+          <span class="avatar dark">{{ user.initials }}</span>
+          <span class="user-text"><strong>{{ user.name }}</strong><small>{{ user.title }}</small></span>
+          <span class="chev">⌄</span>
+        </button>
+        <div class="dropdown" id="user-dropdown" hidden>
+          <button id="logout-btn">Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main class="content">{% block content %}{% endblock %}</main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
