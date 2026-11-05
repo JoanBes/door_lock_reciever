@@ -107,6 +107,29 @@ serves the LibraGate web interface at `http://0.0.0.0:5000`. Set the optional
 `SECRET_KEY` for session security; otherwise a key is generated in
 `data/.secret_key`.
 
+## Web interface
+
+Open `http://localhost:5000` and sign in:
+
+- **Live Overview** (`/`): today's entries, occupancy, and room status,
+  refreshed every five seconds. An open door means occupied/unlocked.
+- **Access Logs** (`/logs`): granted and denied attempts, with ID search,
+  date and result filters, pagination, and CSV export.
+- **Card Management** (`/cards`): add, edit, remove, activate, and deactivate
+  students; manage their names, IDs, emails, card UIDs, and web passwords;
+  and search, sort, and paginate the list.
+
+Administrators can access all pages. Students sign in with their student ID or
+email and the password assigned by an administrator. They can view only Live
+Overview; `/logs`, `/cards`, and their APIs return 403. Deactivating or
+deleting a student immediately removes their web access.
+
+The JSON API requires a session: `POST /api/login`, `POST /api/logout`,
+`GET /api/overview`, `GET /api/events`, `GET /api/events/export.csv`,
+`GET/POST /api/cards`, `PUT/PATCH/DELETE /api/cards/<id>`, and
+`GET /api/health`. Students can access `/api/overview`; the other endpoints
+are for administrators.
+
 ## Project structure
 
 ```text
