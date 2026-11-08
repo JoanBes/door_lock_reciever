@@ -124,11 +124,11 @@ email and the password assigned by an administrator. They can view only Live
 Overview; `/logs`, `/cards`, and their APIs return 403. Deactivating or
 deleting a student immediately removes their web access.
 
-The JSON API requires a session: `POST /api/login`, `POST /api/logout`,
-`GET /api/overview`, `GET /api/events`, `GET /api/events/export.csv`,
-`GET/POST /api/cards`, `PUT/PATCH/DELETE /api/cards/<id>`, and
-`GET /api/health`. Students can access `/api/overview`; the other endpoints
-are for administrators.
+The JSON API provides `POST /api/login`, `POST /api/logout`, and
+`GET /api/health` without requiring a session. `GET /api/overview` requires
+a session and is available to students and administrators. `GET /api/events`,
+`GET /api/events/export.csv`, `GET/POST /api/cards`, and
+`PUT/PATCH/DELETE /api/cards/<id>` require an administrator session.
 
 ## Project structure
 
